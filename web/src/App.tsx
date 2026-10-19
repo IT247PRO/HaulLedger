@@ -10,6 +10,10 @@ import { Equipment } from './pages/Equipment';
 import { Customers } from './pages/Customers';
 import { Users } from './pages/Users';
 import { MyLoads } from './pages/MyLoads';
+import { Settlements } from './pages/Settlements';
+import { SettlementSheet } from './pages/SettlementSheet';
+import { DriverPay } from './pages/DriverPay';
+import { MyPay } from './pages/MyPay';
 
 const NAV: { to: string; label: string; roles: Role[] }[] = [
   { to: '/', label: 'Dashboard', roles: ['owner', 'dispatcher'] },
@@ -18,6 +22,9 @@ const NAV: { to: string; label: string; roles: Role[] }[] = [
   { to: '/drivers', label: 'Drivers', roles: ['owner', 'dispatcher'] },
   { to: '/equipment', label: 'Equipment', roles: ['owner', 'dispatcher'] },
   { to: '/customers', label: 'Customers', roles: ['owner', 'dispatcher'] },
+  { to: '/settlements', label: 'Settlements', roles: ['owner'] },
+  { to: '/settlements', label: 'My settlements', roles: ['driver'] },
+  { to: '/pay', label: 'My pay & receipts', roles: ['driver'] },
   { to: '/users', label: 'Team logins', roles: ['owner'] },
 ];
 
@@ -35,7 +42,7 @@ export function App() {
   const staff = me.role !== 'driver';
   return (
     <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
+      <header className="border-b border-slate-200 bg-white print:hidden">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <span className="font-semibold text-blue-800">HaulLedger</span>
           <nav className="flex flex-wrap gap-1 text-sm">
@@ -60,10 +67,14 @@ export function App() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-6 print:p-0">
         <Routes>
           <Route path="/" element={staff ? <Dashboard /> : <MyLoads />} />
           <Route path="/loads/:id" element={<LoadDetail />} />
+          {me.role !== 'dispatcher' && <Route path="/settlements" element={<Settlements />} />}
+          {me.role !== 'dispatcher' && <Route path="/settlements/:id" element={<SettlementSheet />} />}
+          {me.role === 'driver' && <Route path="/pay" element={<MyPay />} />}
+          {me.role === 'owner' && <Route path="/drivers/:id/pay" element={<DriverPay />} />}
           {staff && (
             <>
               <Route path="/loads" element={<LoadsList />} />

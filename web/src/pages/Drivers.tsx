@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Badge, ErrorText, Field, formValues, Loading, PageHeader } from '../components/ui';
@@ -50,7 +51,10 @@ export function Drivers() {
                   <td>{d.license_state} {d.license_number}</td>
                   <td><ExpiryCell date={d.license_expires_on} /></td>
                   <td><ExpiryCell date={d.medical_expires_on} /></td>
-                  <td className="text-right"><button className="btn-secondary" onClick={() => setEditing(d)}>Edit</button></td>
+                  <td className="text-right whitespace-nowrap">
+                    {isOwner && <Link className="btn-secondary mr-2" to={`/drivers/${d.id}/pay`}>Pay</Link>}
+                    <button className="btn-secondary" onClick={() => setEditing(d)}>Edit</button>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api, formatCents, STATUS_LABEL } from '../api';
+import { api, formatCents, formatScaled, parseDollars, parseScaled, STATUS_LABEL } from '../api';
 import { useAuth } from '../auth';
 import { Badge, ErrorText, Field, Loading, PageHeader } from '../components/ui';
 import { useApi } from '../hooks';
 import { useReferenceData } from './Loads';
+import { DocumentLinks, DocumentUpload } from '../components/Documents';
 
 // Mirrors the server's transition table so we only offer valid buttons; the server still decides.
 const NEXT: Record<string, string[]> = {
@@ -78,7 +79,16 @@ export function LoadDetail() {
           <dl className="grid grid-cols-2 gap-y-1">
             <dt className="text-slate-500">Customer</dt><dd>{load.customer_name ?? '—'}</dd>
             <dt className="text-slate-500">Reference</dt><dd>{load.reference_number ?? '—'}</dd>
-            {staff && (<><dt className="text-slate-500">Rate</dt><dd className="tabular-nums">{formatCents(load.rate_cents)}</dd></>)}
+            {staff && (
+              <>
+                <dt className="text-slate-500">Linehaul</dt><dd className="tabular-nums">{formatCents(load.rate_cents)}</dd>
+                <dt className="text-slate-500">Fuel surcharge</dt><dd className="tabular-nums">{formatCents(load.fuel_surcharge_cents)}</dd>
+                <dt className="text-slate-500">Accessorials</dt><dd className="tabular-nums">{formatCents(load.accessorial_cents)}</dd>
+                <dt className="text-slate-500">Hours (hourly pay)</dt><dd>{load.pay_hours_x100 === null ? '—' : (load.pay_hours_x100 / 100).toFixed(2)}</dd>
+              </>
+            )}
+            <dt className="text-slate-500">POD</dt>
+            <dd>{load.pod_received_at ? <span className="text-green-700">Received {new Date(load.pod_received_at).toLocaleDateString()}</span> : <span className="text-amber-700">Not yet</span>}</dd>
             <dt className="text-slate-500">Loaded / empty miles</dt><dd>{load.loaded_miles ?? '—'} / {load.empty_miles ?? '—'}</dd>
             <dt className="text-slate-500">Commodity</dt><dd>{load.commodity ?? '—'}</dd>
             <dt className="text-slate-500">Weight</dt><dd>{load.weight_lbs ? `${load.weight_lbs.toLocaleString()} lbs` : '—'}</dd>
@@ -107,7 +117,19 @@ export function LoadDetail() {
         </section>
       </div>
 
+      <section className="card space-y-3 text-sm">
+        <h2 className="font-medium">Paperwork</h2>
+        <DocumentLinks docs={load.documents} />
+        <DocumentUpload
+          big={!staff}
+          kinds={staff ? ['pod', 'bol', 'rate_confirmation', 'lumper', 'scale', 'receipt', 'other'] : ['pod', 'bol', 'lumper', 'scale', 'receipt', 'other']}
+          fields={{ load_id: load.id }}
+          onUploaded={reload}
+        />
+      </section>
+
       {staff && <Assignment load={load} onSaved={reload} />}
+      {staff && <Revenue load={load} onSaved={reload} />}
 
       <section className="card text-sm">
         <h2 className="mb-2 font-medium">History</h2>
@@ -169,5 +191,48 @@ function Assignment({ load, onSaved }: { load: any; onSaved: () => void }) {
       </div>
       <div className="mt-2"><ErrorText error={error} /></div>
     </section>
+  );
+}
+
+function Revenue({ load, onSaved }: { load: any; onSaved: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const dollars = (k: string) => parseDollars(String(f.get(k) ?? '0') || '0');
+    const hours = String(f.get('hours') ?? '').trim();
+    const body = {
+      rate_cents: dollars('rate'),
+      fuel_surcharge_cents: dollars('fsc'),
+      accessorial_cents: dollars('acc'),
+      pay_hours_x100: hours ? parseScaled(hours, 2) : null,
+      loaded_miles: f.get('loaded') ? Number(f.get('loaded')) : null,
+      empty_miles: f.get('empty') ? Number(f.get('empty')) : null,
+    };
+    if ([body.rate_cents, body.fuel_surcharge_cents, body.accessorial_cents].includes(null) || (hours && body.pay_hours_x100 === null)) {
+      return setError('Amounts must look like 1234.56; hours like 8.25');
+    }
+    try {
+      await api(`/loads/${load.id}`, { method: 'PATCH', body });
+      setError(null);
+      onSaved();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+  const d = (c: number) => formatScaled(c, 2).replace(/,/g, '');
+  return (
+    <form className="card" onSubmit={save}>
+      <h2 className="mb-2 font-medium">Revenue &amp; pay inputs</h2>
+      <div className="grid gap-3 sm:grid-cols-6">
+        <Field label="Linehaul $"><input className="input" name="rate" defaultValue={d(load.rate_cents)} /></Field>
+        <Field label="Fuel surcharge $"><input className="input" name="fsc" defaultValue={d(load.fuel_surcharge_cents)} /></Field>
+        <Field label="Accessorials $"><input className="input" name="acc" defaultValue={d(load.accessorial_cents)} /></Field>
+        <Field label="Loaded miles"><input className="input" name="loaded" type="number" min={0} defaultValue={load.loaded_miles ?? ''} /></Field>
+        <Field label="Empty miles"><input className="input" name="empty" type="number" min={0} defaultValue={load.empty_miles ?? ''} /></Field>
+        <Field label="Hours"><input className="input" name="hours" defaultValue={load.pay_hours_x100 === null ? '' : formatScaled(load.pay_hours_x100, 2)} /></Field>
+      </div>
+      <div className="mt-2 flex items-center gap-3"><button className="btn">Save</button><ErrorText error={error} /></div>
+    </form>
   );
 }

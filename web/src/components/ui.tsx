@@ -25,12 +25,18 @@ const STATUS_COLOR: Record<string, string> = {
   active: 'bg-green-100 text-green-800',
   inactive: 'bg-slate-100 text-slate-600',
   shop: 'bg-amber-100 text-amber-800',
+  draft: 'bg-amber-100 text-amber-800',
+  finalized: 'bg-blue-100 text-blue-800',
+  paid: 'bg-green-100 text-green-800',
+  pending: 'bg-amber-100 text-amber-800',
+  approved: 'bg-blue-100 text-blue-800',
+  rejected: 'bg-red-100 text-red-700',
 };
 
 export function Badge({ value }: { value: string }) {
   return (
     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[value] ?? 'bg-slate-100'}`}>
-      {STATUS_LABEL[value] ?? value}
+      {STATUS_LABEL[value] ?? value.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())}
     </span>
   );
 }

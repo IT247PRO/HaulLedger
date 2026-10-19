@@ -5,6 +5,7 @@ import { isStaff, requireRole } from '../lib/auth';
 import { uniqueGuard } from '../lib/crud';
 import { badRequest, conflict, forbidden, insertRow, newId, notFound, nowIso, setClause } from '../lib/http';
 import { body, cents, optText, usState } from '../lib/validate';
+import { listDocuments } from './documents';
 
 export const loads = new Hono<AppEnv>();
 
@@ -55,6 +56,9 @@ const loadFields = {
   truck_id: id.nullable().optional(),
   trailer_id: id.nullable().optional(),
   rate_cents: cents.optional(),
+  fuel_surcharge_cents: cents.optional(),
+  accessorial_cents: cents.optional(),
+  pay_hours_x100: z.int().min(0).max(100_000).nullable().optional(),
   loaded_miles: z.int().min(0).max(20_000).nullable().optional(),
   empty_miles: z.int().min(0).max(20_000).nullable().optional(),
   commodity: optText,
@@ -67,7 +71,8 @@ const updateSchema = z.strictObject({ ...loadFields, load_number: loadFields.loa
 const statusSchema = z.strictObject({ status: z.enum(LOAD_STATUSES) });
 
 const LOAD_SELECT = `
-  SELECT l.id, l.load_number, l.reference_number, l.status, l.rate_cents, l.loaded_miles, l.empty_miles,
+  SELECT l.id, l.load_number, l.reference_number, l.status, l.rate_cents, l.fuel_surcharge_cents, l.accessorial_cents,
+         l.pay_hours_x100, l.pod_received_at, l.loaded_miles, l.empty_miles,
          l.commodity, l.weight_lbs, l.notes, l.dispatched_at, l.delivered_at, l.created_at, l.updated_at,
          l.customer_id, c.name AS customer_name,
          l.driver_id, d.first_name || ' ' || d.last_name AS driver_name,
@@ -83,10 +88,14 @@ const LOAD_SELECT = `
 
 type LoadRow = Record<string, unknown> & { id: string; status: LoadStatus; driver_id: string | null; truck_id: string | null };
 
-/** What a principal may see of a load. Drivers never see the linehaul rate (company revenue). */
+/**
+ * What a principal may see of a load. Drivers never see load revenue here; a
+ * percentage-paid driver sees the gross on their settlement, with the rate
+ * confirmation (Truth-in-Leasing).
+ */
 function present(auth: Auth, load: LoadRow) {
   if (isStaff(auth)) return load;
-  const { rate_cents: _rate, ...rest } = load;
+  const { rate_cents: _rate, fuel_surcharge_cents: _fsc, accessorial_cents: _acc, ...rest } = load;
   return rest;
 }
 
@@ -162,7 +171,8 @@ loads.get('/:id', async (c) => {
       .bind(auth.tenantId, load.id)
       .all(),
   ]);
-  return c.json({ load: { ...present(auth, load), stops, events: events.results } });
+  const documents = await listDocuments(c.env.DB, auth, { load_id: load.id });
+  return c.json({ load: { ...present(auth, load), stops, events: events.results, documents } });
 });
 
 loads.post('/', requireRole('owner', 'dispatcher'), async (c) => {

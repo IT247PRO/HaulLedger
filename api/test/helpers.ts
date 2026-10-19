@@ -81,3 +81,35 @@ export const stops = [
   { kind: 'pickup', city: 'Memphis', state: 'TN' },
   { kind: 'delivery', city: 'Chicago', state: 'IL' },
 ];
+
+export async function upload(token: string, fields: Record<string, string>, file = new File(['%PDF-1.4 test'], 'doc.pdf', { type: 'application/pdf' })) {
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) form.set(k, v);
+  form.set('file', file);
+  const res = await app.request('/api/documents', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form }, env);
+  return { status: res.status, body: (await res.json()) as any };
+}
+
+export async function fetchRaw(token: string, path: string) {
+  return app.request(path, { headers: { Authorization: `Bearer ${token}` } }, env);
+}
+
+/** Creates a load for the driver and walks it to delivered (with a POD unless told otherwise). */
+export async function deliveredLoad(c: Carrier, opts: { driverId?: string; driverToken?: string; body?: Record<string, unknown>; pod?: boolean } = {}) {
+  const owner = c.tokens.owner;
+  const load = (await api('POST', '/api/loads', {
+    token: owner,
+    body: { driver_id: opts.driverId ?? c.driver.id, truck_id: c.truck.id, rate_cents: 200_000, loaded_miles: 500, empty_miles: 40, stops, ...opts.body },
+  })).body.load;
+  for (const status of ['dispatched', 'at_pickup', 'in_transit', 'delivered']) {
+    const r = await api('POST', `/api/loads/${load.id}/status`, { token: owner, body: { status } });
+    if (r.status !== 200) throw new Error(`status ${status}: ${JSON.stringify(r.body)}`);
+  }
+  if (opts.pod !== false) {
+    const r = await upload(opts.driverToken ?? owner, { kind: 'pod', load_id: load.id });
+    if (r.status !== 201) throw new Error(`pod upload: ${JSON.stringify(r.body)}`);
+  }
+  return load as { id: string; load_number: string };
+}
+
+export const today = () => new Date().toISOString().slice(0, 10);

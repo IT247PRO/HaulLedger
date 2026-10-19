@@ -9,6 +9,9 @@ import { trucks, trailers } from './routes/equipment';
 import { customers } from './routes/customers';
 import { loads } from './routes/loads';
 import { alerts } from './routes/alerts';
+import { documents } from './routes/documents';
+import { pay } from './routes/pay';
+import { settlements } from './routes/settlements';
 
 const app = new Hono<AppEnv>();
 
@@ -32,6 +35,9 @@ api.route('/trailers', trailers);
 api.route('/customers', customers);
 api.route('/loads', loads);
 api.route('/alerts', alerts);
+api.route('/documents', documents);
+api.route('/settlements', settlements);
+api.route('/', pay);
 app.route('/api', api);
 
 export default app;

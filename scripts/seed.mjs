@@ -32,7 +32,11 @@ async function hashPassword(password) {
 
 const out = [];
 // Children first so foreign keys never block the reset.
-for (const t of ['load_events', 'load_stops', 'loads', 'sessions', 'users', 'customers', 'trailers', 'trucks', 'drivers', 'tenants']) {
+for (const t of [
+  'settlement_lines', 'settlements', 'escrow_transactions', 'driver_reimbursements', 'driver_charges', 'recurring_deductions',
+  'driver_advances', 'driver_pay_rates', 'documents',
+  'load_events', 'load_stops', 'loads', 'sessions', 'users', 'customers', 'trailers', 'trucks', 'drivers', 'tenants',
+]) {
   out.push(`DELETE FROM ${t} WHERE ${t === 'tenants' ? 'id' : 'tenant_id'} = '${TENANT}';`);
 }
 out.push(insert('tenants', { id: TENANT, name: 'Lone Star Freight LLC' }));
@@ -145,6 +149,33 @@ for (let day = -30; day <= 2; day += 2) {
     n++;
   }
 }
+
+// Pay setup: mixed pay per driver, escrow for the owner-operators.
+const payRates = [
+  ['demo-drv-1', 'percent', 2_800, null],
+  ['demo-drv-1', 'per_stop', 5_000, 'extra'],
+  ['demo-drv-2', 'per_mile', 60_000, 'all'],
+  ['demo-drv-2', 'per_diem', 6_900, null],
+  ['demo-drv-3', 'per_mile', 165_000, 'loaded'],
+  ['demo-drv-4', 'per_mile', 58_000, 'all'],
+  ['demo-drv-4', 'per_diem', 6_000, null],
+  ['demo-drv-5', 'per_mile', 55_000, 'loaded'],
+];
+payRates.forEach(([driver_id, kind, rate, basis], i) =>
+  out.push(insert('driver_pay_rates', { id: `demo-rate-${i + 1}`, tenant_id: TENANT, driver_id, kind, rate, basis, effective_from: date(-365) })),
+);
+out.push(`UPDATE drivers SET escrow_target_cents = 250000, escrow_per_settlement_cents = 10000 WHERE tenant_id = '${TENANT}' AND id IN ('demo-drv-1', 'demo-drv-3');`);
+const recurring = [
+  ['demo-drv-1', 'occupational_accident', 3_850, 'Occupational accident policy (weekly)'],
+  ['demo-drv-1', 'eld', 1_500, 'ELD subscription'],
+  ['demo-drv-3', 'insurance', 8_500, 'Physical damage insurance (weekly)'],
+  ['demo-drv-3', 'eld', 1_500, 'ELD subscription'],
+];
+recurring.forEach(([driver_id, category, amount_cents, description], i) =>
+  out.push(insert('recurring_deductions', { id: `demo-rec-${i + 1}`, tenant_id: TENANT, driver_id, category, amount_cents, description })),
+);
+out.push(insert('driver_advances', { id: 'demo-adv-1', tenant_id: TENANT, driver_id: 'demo-drv-1', amount_cents: 20_000, issued_on: date(-3), method: 'comchek', reference: 'CK-88104', memo: 'Trip advance', created_by: owner.id }));
+out.push(insert('driver_charges', { id: 'demo-chg-1', tenant_id: TENANT, driver_id: 'demo-drv-3', category: 'equipment_damage', amount_cents: 15_000, incurred_on: date(-5), description: 'Trailer 5303 mud flap (lease addendum B)', created_by: owner.id }));
 
 process.stdout.write(out.join('\n') + '\n');
 process.stderr.write(`Seeded ${n - 1001} loads. Sign in as ${owner.email} / ${PASSWORD}\n`);
