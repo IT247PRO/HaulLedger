@@ -1,0 +1,13 @@
+{
+  "name": "haulledger",
+  "private": true,
+  "scripts": {
+    "dev:api": "pnpm --filter @haulledger/api dev",
+    "dev:web": "pnpm --filter @haulledger/web dev",
+    "test": "pnpm --filter @haulledger/api test",
+    "typecheck": "pnpm -r typecheck",
+    "db:migrate:local": "pnpm --filter @haulledger/api db:migrate:local",
+    "db:seed:local": "pnpm --filter @haulledger/api db:seed:local"
+  },
+  "packageManager": "pnpm@10.28.0"
+}
