@@ -8,4 +8,6 @@ declare global {
 }
 interface ProvidedEnv extends Env {
   TEST_MIGRATIONS: D1Migration[];
+  INTEGRATIONS_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
 }

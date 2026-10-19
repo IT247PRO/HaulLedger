@@ -6,14 +6,14 @@ export interface Res<T = any> {
   body: T;
 }
 
-export async function api<T = any>(method: string, path: string, opts: { token?: string; body?: unknown } = {}): Promise<Res<T>> {
+export async function api<T = any>(method: string, path: string, opts: { token?: string; body?: unknown; env?: Record<string, unknown> } = {}): Promise<Res<T>> {
   const headers: Record<string, string> = {};
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await app.request(
     path,
     { method, headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body) },
-    env,
+    opts.env ? { ...env, ...opts.env } : env,
   );
   const text = await res.text();
   return { status: res.status, body: (text ? JSON.parse(text) : null) as T };

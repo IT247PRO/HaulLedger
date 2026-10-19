@@ -9,7 +9,7 @@ export const drivers = new Hono<AppEnv>();
 
 const COLUMNS = `id, first_name, last_name, email, phone, pay_track, status, license_number, license_state,
   license_class, license_expires_on, medical_expires_on, hired_on, escrow_target_cents, escrow_per_settlement_cents,
-  created_at, updated_at`;
+  eld_driver_id, created_at, updated_at`;
 
 // Fields a dispatcher may maintain. pay_track (W-2 vs 1099) is a pay decision: owner only.
 const profileFields = {
@@ -24,6 +24,7 @@ const profileFields = {
   license_expires_on: optDate,
   medical_expires_on: optDate,
   hired_on: optDate,
+  eld_driver_id: z.string().trim().max(64).nullable().optional(),
 };
 
 // Owner-only pay terms. Escrow exists only for 1099 contractors (49 CFR 376.12(k)).

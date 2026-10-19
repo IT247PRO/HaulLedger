@@ -14,11 +14,12 @@ const truckFields = {
   plate: optText,
   plate_state: usState.nullable().optional(),
   status: status.optional(),
+  traccar_device_id: z.string().trim().max(64).nullable().optional(),
 };
 
 export const trucks = crudRoutes({
   table: 'trucks',
-  columns: 'id, unit_number, vin, make, model, year, plate, plate_state, status, created_at, updated_at',
+  columns: 'id, unit_number, vin, make, model, year, plate, plate_state, status, odometer, traccar_device_id, created_at, updated_at',
   orderBy: 'unit_number',
   listKey: 'trucks',
   itemKey: 'truck',

@@ -22,6 +22,11 @@ import { Ifta } from './pages/Ifta';
 import { DqfFile, DqfList } from './pages/Dqf';
 import { Maintenance } from './pages/Maintenance';
 import { Inspection } from './pages/Inspection';
+import { Settings } from './pages/Settings';
+import { Tracking } from './pages/Tracking';
+import { BookLoad } from './pages/BookLoad';
+import { RateCalculator } from './pages/RateCalculator';
+import { CustomerProfile } from './pages/CustomerProfile';
 
 const NAV: { group: string; items: { to: string; label: string; roles: Role[] }[] }[] = [
   {
@@ -31,6 +36,7 @@ const NAV: { group: string; items: { to: string; label: string; roles: Role[] }[
       { to: '/', label: 'My loads', roles: ['driver'] },
       { to: '/inspection', label: 'Inspection', roles: ['driver'] },
       { to: '/loads', label: 'Loads', roles: ['owner', 'dispatcher'] },
+      { to: '/fleet', label: 'Fleet', roles: ['owner', 'dispatcher'] },
       { to: '/drivers', label: 'Drivers', roles: ['owner', 'dispatcher'] },
       { to: '/equipment', label: 'Equipment', roles: ['owner', 'dispatcher'] },
       { to: '/customers', label: 'Customers', roles: ['owner', 'dispatcher'] },
@@ -46,6 +52,7 @@ const NAV: { group: string; items: { to: string; label: string; roles: Role[] }[
       { to: '/fuel', label: 'Fuel', roles: ['owner', 'dispatcher'] },
       { to: '/expenses', label: 'Expenses', roles: ['owner', 'dispatcher'] },
       { to: '/reports', label: 'Reports', roles: ['owner'] },
+      { to: '/rate-calculator', label: 'Rate calculator', roles: ['owner'] },
     ],
   },
   {
@@ -56,7 +63,13 @@ const NAV: { group: string; items: { to: string; label: string; roles: Role[] }[
       { to: '/maintenance', label: 'Maintenance', roles: ['owner', 'dispatcher'] },
     ],
   },
-  { group: 'Settings', items: [{ to: '/users', label: 'Team logins', roles: ['owner'] }] },
+  {
+    group: 'Settings',
+    items: [
+      { to: '/users', label: 'Team logins', roles: ['owner'] },
+      { to: '/settings', label: 'Integrations & billing', roles: ['owner'] },
+    ],
+  },
 ];
 
 export function App() {
@@ -119,6 +132,9 @@ export function App() {
             <>
               <Route path="/loads" element={<LoadsList />} />
               <Route path="/loads/new" element={<NewLoad />} />
+              <Route path="/loads/book" element={<BookLoad />} />
+              <Route path="/fleet" element={<Tracking />} />
+              <Route path="/customers/:id" element={<CustomerProfile />} />
               <Route path="/drivers" element={<Drivers />} />
               <Route path="/equipment" element={<Equipment />} />
               <Route path="/customers" element={<Customers />} />
@@ -133,6 +149,9 @@ export function App() {
           )}
           {me.role === 'owner' && <Route path="/users" element={<Users />} />}
           {me.role === 'owner' && <Route path="/reports" element={<Reports />} />}
+          {me.role === 'owner' && <Route path="/rate-calculator" element={<RateCalculator />} />}
+          {me.role === 'owner' && <Route path="/settings" element={<Settings />} />}
+          {me.role === 'owner' && <Route path="/billing/subscription" element={<Settings />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

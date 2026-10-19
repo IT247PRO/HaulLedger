@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { ErrorText, Field, formValues, Loading, PageHeader } from '../components/ui';
 import { useApi } from '../hooks';
@@ -57,7 +58,7 @@ export function Customers() {
             <tbody>
               {data.customers.map((r) => (
                 <tr key={r.id}>
-                  <td className="font-medium">{r.name}</td>
+                  <td className="font-medium"><Link className="text-blue-700" to={`/customers/${r.id}`}>{r.name}</Link></td>
                   <td className="capitalize">{r.kind}</td>
                   <td>{r.mc_number ?? '—'}</td>
                   <td>{r.email ?? r.phone ?? '—'}</td>

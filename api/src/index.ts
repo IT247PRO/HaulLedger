@@ -19,6 +19,11 @@ import { reports } from './routes/reports';
 import { ifta } from './routes/ifta';
 import { dqf } from './routes/dqf';
 import { dvirs, maintenance } from './routes/maintenance';
+import { hos, integrations, loadboard, tracking } from './routes/integrations';
+import { factoring } from './routes/factoring';
+import { crm } from './routes/crm';
+import { rateCalculator } from './routes/rates';
+import { billing, stripeWebhook } from './routes/billing';
 
 const app = new Hono<AppEnv>();
 
@@ -31,6 +36,8 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
 app.get('/api/health', (c) => c.json({ ok: true }));
 app.route('/api/auth', auth);
+// Signed by Stripe, not by a session.
+app.route('/api/stripe/webhook', stripeWebhook);
 
 // Everything below requires a session; tenant scope comes from that session.
 const api = new Hono<AppEnv>();
@@ -52,6 +59,14 @@ api.route('/ifta', ifta);
 api.route('/dqf', dqf);
 api.route('/maintenance', maintenance);
 api.route('/dvirs', dvirs);
+api.route('/integrations', integrations);
+api.route('/tracking', tracking);
+api.route('/hos', hos);
+api.route('/loadboard', loadboard);
+api.route('/factoring', factoring);
+api.route('/crm', crm);
+api.route('/rate-calculator', rateCalculator);
+api.route('/billing', billing);
 api.route('/', pay);
 app.route('/api', api);
 

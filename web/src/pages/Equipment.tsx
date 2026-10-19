@@ -47,6 +47,7 @@ function UnitSection({ kind }: { kind: 'trucks' | 'trailers' }) {
                 <Field label="Make"><input className="input" name="make" defaultValue={u.make ?? ''} /></Field>
                 <Field label="Model"><input className="input" name="model" defaultValue={u.model ?? ''} /></Field>
                 <Field label="Year"><input className="input" name="year" type="number" defaultValue={u.year ?? ''} /></Field>
+                <Field label="Traccar device ID"><input className="input" name="traccar_device_id" defaultValue={u.traccar_device_id ?? ''} /></Field>
               </>
             ) : (
               <Field label="Type">

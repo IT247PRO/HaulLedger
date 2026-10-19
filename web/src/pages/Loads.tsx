@@ -18,6 +18,7 @@ export function LoadsList() {
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        <Link className="btn-secondary" to="/loads/book">Book from rate con</Link>
         <Link className="btn" to="/loads/new">New load</Link>
       </PageHeader>
       <ErrorText error={error} />

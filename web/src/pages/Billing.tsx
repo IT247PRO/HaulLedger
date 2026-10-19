@@ -165,6 +165,8 @@ export function InvoiceView() {
         )}
       </section>
 
+      <Factoring invoice={inv} onChange={reload} />
+
       <section className="card space-y-2 text-sm print:hidden">
         <h2 className="font-medium">Payments</h2>
         {inv.payments.map((p: any) => <p key={p.id}>{p.received_on} · {label(p.method)} {p.reference ?? ''} · {formatCents(p.amount_cents)}</p>)}
@@ -180,5 +182,47 @@ export function InvoiceView() {
         <ErrorText error={payError} />
       </section>
     </div>
+  );
+}
+
+function Factoring({ invoice, onChange }: { invoice: any; onChange: () => void }) {
+  const companies = useApi<{ companies: any[] }>('/factoring/companies');
+  const subs = useApi<{ submissions: any[] }>('/factoring/submissions');
+  const [msg, setMsg] = useState<string | null>(null);
+  const mine = subs.data?.submissions.filter((s) => s.invoice_id === invoice.id) ?? [];
+  const live = mine.find((s) => s.status !== 'rejected');
+  async function submit(factorId: string) {
+    try {
+      const r = await api<{ sent_to: string; attachments: number }>('/factoring/submit', { method: 'POST', body: { invoice_id: invoice.id, factor_id: factorId } });
+      setMsg(`Sent to ${r.sent_to} with ${r.attachments} documents`);
+      subs.reload();
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  }
+  async function funded(id: string) {
+    try {
+      await api(`/factoring/submissions/${id}/funded`, { method: 'POST', body: { funded_on: new Date().toISOString().slice(0, 10) } });
+      subs.reload();
+      onChange();
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  }
+  if (!companies.data || (companies.data.companies.length === 0 && !live)) return null;
+  return (
+    <section className="card space-y-2 text-sm print:hidden">
+      <h2 className="font-medium">Factoring</h2>
+      {live ? (
+        <p>
+          {live.status === 'submitted' ? 'Submitted' : 'Funded'} to {live.factor_name} {new Date(live.submitted_at).toLocaleDateString()}
+          {live.status === 'funded' && ` · ${formatCents(live.funded_cents)} funded, ${formatCents(live.fee_cents)} fee`}
+          {live.status === 'submitted' && <button className="btn ml-3" onClick={() => void funded(live.id)}>Mark funded</button>}
+        </p>
+      ) : invoice.status === 'open' && invoice.paid_cents === 0 ? (
+        <div className="flex flex-wrap gap-2">{companies.data.companies.map((f) => <button key={f.id} className="btn-secondary" onClick={() => void submit(f.id)}>Submit to {f.name}</button>)}</div>
+      ) : null}
+      {msg && <p>{msg}</p>}
+    </section>
   );
 }

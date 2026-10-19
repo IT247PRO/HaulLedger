@@ -69,7 +69,10 @@ export async function invoiceDetail(db: D1Database, tenantId: string, id: string
         WHERE i.tenant_id = ? AND i.id = ?`,
     )
     .bind(tenantId, id)
-    .first<Record<string, any> & { id: string; status: string; total_cents: number; paid_cents: number; invoice_number: string }>();
+    .first<{
+      id: string; status: string; total_cents: number; paid_cents: number; invoice_number: string; issued_on: string; due_on: string;
+      carrier_name: string; customer_name: string; customer_mc: string | null; [k: string]: unknown;
+    }>();
   if (!invoice) notFound('Invoice not found');
   const [lines, payments, docs] = await Promise.all([
     db.prepare(

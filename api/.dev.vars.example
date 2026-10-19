@@ -1,0 +1,12 @@
+# Copy to .dev.vars for `wrangler dev`. In production set each with `wrangler secret put NAME`.
+# Encrypts per-carrier integration credentials: 32 random bytes, base64.
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+INTEGRATIONS_KEY=
+# Optional. Unset features answer 501 "not configured".
+RESEND_API_KEY=
+EMAIL_FROM=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PRICE_STARTER=
+STRIPE_PRICE_FLEET=
+APP_URL=http://localhost:5173

@@ -107,6 +107,7 @@ function DriverForm({ driver, isOwner, onDone }: { driver: any | null; isOwner: 
         <Field label="CDL expires"><input className="input" name="license_expires_on" type="date" defaultValue={d.license_expires_on ?? ''} /></Field>
         <Field label="Medical card expires"><input className="input" name="medical_expires_on" type="date" defaultValue={d.medical_expires_on ?? ''} /></Field>
         <Field label="Hired on"><input className="input" name="hired_on" type="date" defaultValue={d.hired_on ?? ''} /></Field>
+        <Field label="ELD driver ID (Samsara / Motive)"><input className="input" name="eld_driver_id" defaultValue={d.eld_driver_id ?? ''} /></Field>
       </div>
       {!isOwner && <p className="text-xs text-slate-500">Only the owner can change a driver's pay track.</p>}
       <ErrorText error={error} />
