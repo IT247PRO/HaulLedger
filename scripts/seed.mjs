@@ -34,7 +34,7 @@ const out = [];
 // Children first so foreign keys never block the reset.
 for (const t of [
   'settlement_lines', 'settlements', 'escrow_transactions', 'driver_reimbursements', 'driver_charges', 'recurring_deductions',
-  'driver_advances', 'driver_pay_rates', 'documents',
+  'driver_advances', 'driver_pay_rates', 'invoice_payments', 'invoice_lines', 'invoices', 'expenses', 'fuel_transactions', 'fuel_imports', 'fuel_cards', 'documents',
   'load_events', 'load_stops', 'loads', 'sessions', 'users', 'customers', 'trailers', 'trucks', 'drivers', 'tenants',
 ]) {
   out.push(`DELETE FROM ${t} WHERE ${t === 'tenants' ? 'id' : 'tenant_id'} = '${TENANT}';`);
@@ -89,42 +89,46 @@ for (const u of [owner, dispatcher, ...driverUsers]) {
   out.push(insert('users', { tenant_id: TENANT, password_hash: await hashPassword(PASSWORD), ...u }));
 }
 
+// Lanes with loaded miles by state (sums equal the lane miles) for IFTA and fuel stops.
 const lanes = [
-  ['Dallas', 'TX', 'Atlanta', 'GA', 781],
-  ['Houston', 'TX', 'Memphis', 'TN', 563],
-  ['Fort Worth', 'TX', 'Phoenix', 'AZ', 1019],
-  ['San Antonio', 'TX', 'Oklahoma City', 'OK', 466],
-  ['Laredo', 'TX', 'Chicago', 'IL', 1366],
-  ['Dallas', 'TX', 'Denver', 'CO', 794],
-  ['Houston', 'TX', 'New Orleans', 'LA', 348],
-  ['El Paso', 'TX', 'Los Angeles', 'CA', 801],
+  ['Dallas', 'TX', 'Atlanta', 'GA', 781, { TX: 190, LA: 190, MS: 155, AL: 170, GA: 76 }],
+  ['Houston', 'TX', 'Memphis', 'TN', 563, { TX: 290, AR: 260, TN: 13 }],
+  ['Fort Worth', 'TX', 'Phoenix', 'AZ', 1019, { TX: 590, NM: 164, AZ: 265 }],
+  ['San Antonio', 'TX', 'Oklahoma City', 'OK', 466, { TX: 340, OK: 126 }],
+  ['Laredo', 'TX', 'Chicago', 'IL', 1366, { TX: 580, OK: 236, MO: 290, IL: 260 }],
+  ['Dallas', 'TX', 'Denver', 'CO', 794, { TX: 465, NM: 85, CO: 244 }],
+  ['Houston', 'TX', 'New Orleans', 'LA', 348, { TX: 120, LA: 228 }],
+  ['El Paso', 'TX', 'Los Angeles', 'CA', 801, { TX: 20, NM: 145, AZ: 395, CA: 241 }],
 ];
+const seededLoads = [];
 
 // ~30 days of loads, rotating drivers across the three trucks.
 let n = 1001;
 for (let day = -30; day <= 2; day += 2) {
   for (const [di, d] of drivers.entries()) {
     if (rand() < 0.45) continue;
-    const [oc, os, dc, ds, miles] = pick(lanes);
+    const [oc, os, dc, ds, miles, stateMiles] = pick(lanes);
     const transitDays = Math.max(1, Math.round(miles / 550));
     const pickupDay = day + (di % 2);
     const deliverDay = pickupDay + transitDays;
     const status = deliverDay < 0 ? 'delivered' : pickupDay < 0 ? 'in_transit' : pickupDay === 0 ? 'dispatched' : 'planned';
     const rateCentsPerMile = 220 + Math.floor(rand() * 90); // $2.20–$3.09 all-in
     const id = `demo-load-${n}`;
+    const emptyMiles = Math.floor(rand() * 90);
+    seededLoads.push({ id, status, miles, emptyMiles, stateMiles, originState: os, pickupDay, deliverDay, driverIndex: di, rateCents: miles * rateCentsPerMile, customer: null });
     out.push(insert('loads', {
       id,
       tenant_id: TENANT,
       load_number: `L-${n}`,
       reference_number: `PO${400_000 + n * 7}`,
-      customer_id: pick(customers).id,
+      customer_id: (seededLoads[seededLoads.length - 1].customer = pick(customers).id),
       driver_id: d.id,
       truck_id: trucks[di % trucks.length].id,
       trailer_id: trailers[di % trailers.length].id,
       status,
       rate_cents: miles * rateCentsPerMile,
       loaded_miles: miles,
-      empty_miles: Math.floor(rand() * 90),
+      empty_miles: emptyMiles,
       commodity: pick(['General freight', 'Paper products', 'Resin', 'Canned goods', 'Auto parts']),
       weight_lbs: 20_000 + Math.floor(rand() * 22_000),
       dispatched_at: status === 'planned' ? null : ts(pickupDay - 1, 15),
@@ -176,6 +180,58 @@ recurring.forEach(([driver_id, category, amount_cents, description], i) =>
 );
 out.push(insert('driver_advances', { id: 'demo-adv-1', tenant_id: TENANT, driver_id: 'demo-drv-1', amount_cents: 20_000, issued_on: date(-3), method: 'comchek', reference: 'CK-88104', memo: 'Trip advance', created_by: owner.id }));
 out.push(insert('driver_charges', { id: 'demo-chg-1', tenant_id: TENANT, driver_id: 'demo-drv-3', category: 'equipment_damage', amount_cents: 15_000, incurred_on: date(-5), description: 'Trailer 5303 mud flap (lease addendum B)', created_by: owner.id }));
+
+// Fuel: ~6.4 mpg, bought in the states the truck runs most, on one EFS card per truck.
+let fuelN = 0;
+const cards = ['4101', '4102', '4103'];
+trucks.forEach((t, i) => out.push(insert('fuel_cards', { id: `demo-card-${i + 1}`, tenant_id: TENANT, provider: 'efs', card_last4: cards[i], truck_id: t.id })));
+for (const l of seededLoads.filter((x) => x.status === 'delivered' || x.status === 'in_transit')) {
+  const totalMiles = l.miles + l.emptyMiles;
+  let galMilli = Math.round((totalMiles * 1000) / 6.4);
+  const states = Object.entries(l.stateMiles).sort((a, b) => b[1] - a[1]).slice(0, totalMiles > 700 ? 2 : 1);
+  states.forEach(([state], k) => {
+    const g = k === states.length - 1 ? galMilli : Math.round(galMilli * 0.55);
+    galMilli -= g;
+    const pricePerGalMilli = 3_590 + Math.floor(rand() * 520); // $3.59–$4.11 in thousandths of a dollar
+    fuelN++;
+    out.push(insert('fuel_transactions', {
+      id: `demo-fuel-${fuelN}`, tenant_id: TENANT, provider: 'efs', external_id: `DEMO-${fuelN}`,
+      transacted_at: ts(l.pickupDay + k, 10 + k * 6), card_last4: cards[l.driverIndex % 3], raw_unit: trucks[l.driverIndex % 3].unit_number,
+      truck_id: trucks[l.driverIndex % 3].id, driver_id: drivers[l.driverIndex].id, load_id: l.id,
+      merchant: pick(["Love's", 'Pilot', 'TA', 'Petro', 'Flying J']), state, product: 'diesel',
+      gallons_milli: g, amount_cents: Math.round((g * pricePerGalMilli) / 10_000),
+    }));
+  });
+}
+
+// Fixed and variable costs per truck, plus company overhead.
+let expN = 0;
+const expense = (row) => out.push(insert('expenses', { id: `demo-exp-${++expN}`, tenant_id: TENANT, created_by: owner.id, ...row }));
+for (const t of trucks) {
+  expense({ category: 'truck_payment', amount_cents: 245_000, incurred_on: date(-20), vendor: 'Daimler Truck Financial', description: `Unit ${t.unit_number} payment`, truck_id: t.id });
+  expense({ category: 'insurance', amount_cents: 115_000, incurred_on: date(-25), vendor: 'Progressive Commercial', description: `Unit ${t.unit_number} liability + cargo`, truck_id: t.id });
+  expense({ category: 'maintenance', amount_cents: 18_000 + Math.floor(rand() * 60_000), incurred_on: date(-12), vendor: 'Rush Truck Center', description: 'PM service A', truck_id: t.id });
+  expense({ category: 'tolls', amount_cents: 4_000 + Math.floor(rand() * 9_000), incurred_on: date(-6), vendor: 'PrePass', description: 'Tolls', truck_id: t.id });
+}
+expense({ category: 'tires', amount_cents: 168_000, incurred_on: date(-9), vendor: 'Southern Tire Mart', description: 'Drive tires (8)', truck_id: 'demo-trk-2' });
+expense({ category: 'software', amount_cents: 9_900, incurred_on: date(-15), vendor: 'HaulLedger', description: 'Subscription' });
+expense({ category: 'office', amount_cents: 31_500, incurred_on: date(-15), vendor: 'Regus', description: 'Office rent' });
+
+// Invoices: delivered loads older than a week are billed; older than ~25 days are paid.
+let invN = 0;
+for (const l of seededLoads.filter((x) => x.status === 'delivered' && x.deliverDay <= -7)) {
+  invN++;
+  const id = `demo-inv-${invN}`;
+  const issued = date(l.deliverDay + 1);
+  const due = date(l.deliverDay + 31);
+  const paid = l.deliverDay <= -25;
+  out.push(insert('invoices', {
+    id, tenant_id: TENANT, invoice_number: `INV-${10000 + invN}`, customer_id: l.customer, status: paid ? 'paid' : 'open', issued_on: issued,
+    terms_days: 30, due_on: due, total_cents: l.rateCents, paid_cents: paid ? l.rateCents : 0, paid_on: paid ? date(l.deliverDay + 24) : null, sent_at: ts(l.deliverDay + 1, 16), created_by: dispatcher.id,
+  }));
+  out.push(insert('invoice_lines', { id: `${id}-1`, tenant_id: TENANT, invoice_id: id, seq: 1, load_id: l.id, kind: 'linehaul', description: `L-${l.id.slice(10)} linehaul`, amount_cents: l.rateCents }));
+  if (paid) out.push(insert('invoice_payments', { id: `${id}-p`, tenant_id: TENANT, invoice_id: id, amount_cents: l.rateCents, received_on: date(l.deliverDay + 24), method: 'ach', created_by: owner.id }));
+}
 
 process.stdout.write(out.join('\n') + '\n');
 process.stderr.write(`Seeded ${n - 1001} loads. Sign in as ${owner.email} / ${PASSWORD}\n`);

@@ -14,6 +14,10 @@ import { Settlements } from './pages/Settlements';
 import { SettlementSheet } from './pages/SettlementSheet';
 import { DriverPay } from './pages/DriverPay';
 import { MyPay } from './pages/MyPay';
+import { Billing, InvoiceView } from './pages/Billing';
+import { Expenses } from './pages/Expenses';
+import { Fuel } from './pages/Fuel';
+import { Reports } from './pages/Reports';
 
 const NAV: { to: string; label: string; roles: Role[] }[] = [
   { to: '/', label: 'Dashboard', roles: ['owner', 'dispatcher'] },
@@ -22,7 +26,11 @@ const NAV: { to: string; label: string; roles: Role[] }[] = [
   { to: '/drivers', label: 'Drivers', roles: ['owner', 'dispatcher'] },
   { to: '/equipment', label: 'Equipment', roles: ['owner', 'dispatcher'] },
   { to: '/customers', label: 'Customers', roles: ['owner', 'dispatcher'] },
+  { to: '/billing', label: 'Billing', roles: ['owner', 'dispatcher'] },
   { to: '/settlements', label: 'Settlements', roles: ['owner'] },
+  { to: '/fuel', label: 'Fuel', roles: ['owner', 'dispatcher'] },
+  { to: '/expenses', label: 'Expenses', roles: ['owner', 'dispatcher'] },
+  { to: '/reports', label: 'Reports', roles: ['owner'] },
   { to: '/settlements', label: 'My settlements', roles: ['driver'] },
   { to: '/pay', label: 'My pay & receipts', roles: ['driver'] },
   { to: '/users', label: 'Team logins', roles: ['owner'] },
@@ -82,9 +90,14 @@ export function App() {
               <Route path="/drivers" element={<Drivers />} />
               <Route path="/equipment" element={<Equipment />} />
               <Route path="/customers" element={<Customers />} />
+              <Route path="/billing" element={<Billing />} />
+              <Route path="/invoices/:id" element={<InvoiceView />} />
+              <Route path="/expenses" element={<Expenses />} />
+              <Route path="/fuel" element={<Fuel />} />
             </>
           )}
           {me.role === 'owner' && <Route path="/users" element={<Users />} />}
+          {me.role === 'owner' && <Route path="/reports" element={<Reports />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

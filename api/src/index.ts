@@ -12,6 +12,10 @@ import { alerts } from './routes/alerts';
 import { documents } from './routes/documents';
 import { pay } from './routes/pay';
 import { settlements } from './routes/settlements';
+import { invoices } from './routes/invoices';
+import { expenses } from './routes/expenses';
+import { fuel } from './routes/fuel';
+import { reports } from './routes/reports';
 
 const app = new Hono<AppEnv>();
 
@@ -37,6 +41,10 @@ api.route('/loads', loads);
 api.route('/alerts', alerts);
 api.route('/documents', documents);
 api.route('/settlements', settlements);
+api.route('/invoices', invoices);
+api.route('/expenses', expenses);
+api.route('/fuel', fuel);
+api.route('/reports', reports);
 api.route('/', pay);
 app.route('/api', api);
 
