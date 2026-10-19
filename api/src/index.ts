@@ -16,6 +16,9 @@ import { invoices } from './routes/invoices';
 import { expenses } from './routes/expenses';
 import { fuel } from './routes/fuel';
 import { reports } from './routes/reports';
+import { ifta } from './routes/ifta';
+import { dqf } from './routes/dqf';
+import { dvirs, maintenance } from './routes/maintenance';
 
 const app = new Hono<AppEnv>();
 
@@ -45,6 +48,10 @@ api.route('/invoices', invoices);
 api.route('/expenses', expenses);
 api.route('/fuel', fuel);
 api.route('/reports', reports);
+api.route('/ifta', ifta);
+api.route('/dqf', dqf);
+api.route('/maintenance', maintenance);
+api.route('/dvirs', dvirs);
 api.route('/', pay);
 app.route('/api', api);
 

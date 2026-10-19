@@ -16,3 +16,8 @@ export function sum(values: number[]): number {
   }
   return total;
 }
+
+/** a / b rounded half away from zero, for any safe integer a (credits are negative). */
+export function roundDivSigned(a: number, b: number): number {
+  return a < 0 ? -roundDiv(-a, b) : roundDiv(a, b);
+}

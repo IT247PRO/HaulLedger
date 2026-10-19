@@ -52,6 +52,7 @@ export function Drivers() {
                   <td><ExpiryCell date={d.license_expires_on} /></td>
                   <td><ExpiryCell date={d.medical_expires_on} /></td>
                   <td className="text-right whitespace-nowrap">
+                    <Link className="btn-secondary mr-2" to={`/dqf/${d.id}`}>DQ file</Link>
                     {isOwner && <Link className="btn-secondary mr-2" to={`/drivers/${d.id}/pay`}>Pay</Link>}
                     <button className="btn-secondary" onClick={() => setEditing(d)}>Edit</button>
                   </td>

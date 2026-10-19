@@ -6,6 +6,7 @@ import { uniqueGuard } from '../lib/crud';
 import { badRequest, conflict, forbidden, insertRow, newId, notFound, nowIso, setClause } from '../lib/http';
 import { body, cents, optText, usState } from '../lib/validate';
 import { listDocuments } from './documents';
+import { openDefects } from './maintenance';
 
 export const loads = new Hono<AppEnv>();
 
@@ -229,6 +230,13 @@ loads.post('/:id/status', async (c) => {
   if (!isStaff(auth) && DRIVER_TRANSITIONS[from] !== to) forbidden(`Drivers cannot move a load from ${from} to ${to}`);
   if (!TRANSITIONS[from].includes(to)) badRequest(`Cannot move a load from ${from} to ${to}`);
   if (to === 'dispatched' && (!load.driver_id || !load.truck_id)) badRequest('Assign a driver and a truck before dispatching');
+  if (to === 'dispatched') {
+    const open = await openDefects(c.env.DB, auth.tenantId, load.truck_id, (load.trailer_id as string | null) ?? null);
+    if (open.length) {
+      const units = [...new Set(open.flatMap((d) => [d.truck_unit && load.truck_id ? `truck ${d.truck_unit}` : null, d.trailer_unit ? `trailer ${d.trailer_unit}` : null]).filter(Boolean))];
+      conflict(`Open DVIR defects on ${units.join(' and ')}: certify the repair before dispatching`);
+    }
+  }
 
   const now = nowIso();
   const stamps = to === 'dispatched' ? ', dispatched_at = ?5' : to === 'delivered' ? ', delivered_at = ?5' : '';

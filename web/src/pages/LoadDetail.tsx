@@ -6,6 +6,7 @@ import { Badge, ErrorText, Field, Loading, PageHeader } from '../components/ui';
 import { useApi } from '../hooks';
 import { useReferenceData } from './Loads';
 import { DocumentLinks, DocumentUpload } from '../components/Documents';
+import { StateMiles } from '../components/StateMiles';
 
 // Mirrors the server's transition table so we only offer valid buttons; the server still decides.
 const NEXT: Record<string, string[]> = {
@@ -130,6 +131,7 @@ export function LoadDetail() {
 
       {staff && <Assignment load={load} onSaved={reload} />}
       {staff && <Revenue load={load} onSaved={reload} />}
+      {staff && load.truck_id && <StateMiles loadId={load.id} expected={(load.loaded_miles ?? 0) + (load.empty_miles ?? 0)} />}
 
       <section className="card text-sm">
         <h2 className="mb-2 font-medium">History</h2>

@@ -34,6 +34,7 @@ const out = [];
 // Children first so foreign keys never block the reset.
 for (const t of [
   'settlement_lines', 'settlements', 'escrow_transactions', 'driver_reimbursements', 'driver_charges', 'recurring_deductions',
+  'dvir_defects', 'dvirs', 'maintenance_records', 'pm_schedules', 'dqf_items', 'jurisdiction_miles', 'ifta_tax_rates',
   'driver_advances', 'driver_pay_rates', 'invoice_payments', 'invoice_lines', 'invoices', 'expenses', 'fuel_transactions', 'fuel_imports', 'fuel_cards', 'documents',
   'load_events', 'load_stops', 'loads', 'sessions', 'users', 'customers', 'trailers', 'trucks', 'drivers', 'tenants',
 ]) {
@@ -196,7 +197,7 @@ for (const l of seededLoads.filter((x) => x.status === 'delivered' || x.status =
     fuelN++;
     out.push(insert('fuel_transactions', {
       id: `demo-fuel-${fuelN}`, tenant_id: TENANT, provider: 'efs', external_id: `DEMO-${fuelN}`,
-      transacted_at: ts(l.pickupDay + k, 10 + k * 6), card_last4: cards[l.driverIndex % 3], raw_unit: trucks[l.driverIndex % 3].unit_number,
+      transacted_at: l.status === 'delivered' ? ts(l.deliverDay, 6 + k * 4) : ts(l.pickupDay, 10 + k * 4), card_last4: cards[l.driverIndex % 3], raw_unit: trucks[l.driverIndex % 3].unit_number,
       truck_id: trucks[l.driverIndex % 3].id, driver_id: drivers[l.driverIndex].id, load_id: l.id,
       merchant: pick(["Love's", 'Pilot', 'TA', 'Petro', 'Flying J']), state, product: 'diesel',
       gallons_milli: g, amount_cents: Math.round((g * pricePerGalMilli) / 10_000),
@@ -231,6 +232,59 @@ for (const l of seededLoads.filter((x) => x.status === 'delivered' && x.deliverD
   }));
   out.push(insert('invoice_lines', { id: `${id}-1`, tenant_id: TENANT, invoice_id: id, seq: 1, load_id: l.id, kind: 'linehaul', description: `L-${l.id.slice(10)} linehaul`, amount_cents: l.rateCents }));
   if (paid) out.push(insert('invoice_payments', { id: `${id}-p`, tenant_id: TENANT, invoice_id: id, amount_cents: l.rateCents, received_on: date(l.deliverDay + 24), method: 'ach', created_by: owner.id }));
+}
+
+// IFTA: miles by state for every delivered load; deadhead counted in the origin state.
+let jmN = 0;
+for (const l of seededLoads.filter((x) => x.status === 'delivered')) {
+  const byState = { ...l.stateMiles };
+  byState[l.originState] = (byState[l.originState] ?? 0) + l.emptyMiles;
+  for (const [state, miles] of Object.entries(byState)) {
+    out.push(insert('jurisdiction_miles', {
+      id: `demo-jm-${++jmN}`, tenant_id: TENANT, truck_id: trucks[l.driverIndex % 3].id, load_id: l.id, traveled_on: date(l.deliverDay), state, miles, created_by: dispatcher.id,
+    }));
+  }
+}
+
+// Maintenance: odometers, PM schedules (one coming due), and service history.
+const odometers = [412_870, 388_410, 251_090];
+trucks.forEach((t, i) => out.push(`UPDATE trucks SET odometer = ${odometers[i]} WHERE tenant_id = '${TENANT}' AND id = '${t.id}';`));
+const pm = [
+  ['demo-pm-1', 'demo-trk-1', null, 'Oil & filter (PM A)', 25_000, null, date(-70), 388_600],
+  ['demo-pm-2', 'demo-trk-2', null, 'Oil & filter (PM A)', 25_000, null, date(-20), 380_100],
+  ['demo-pm-3', 'demo-trk-3', null, 'Oil & filter (PM A)', 25_000, null, date(-40), 240_000],
+  ['demo-pm-4', 'demo-trk-1', null, 'Annual DOT inspection (396.17)', null, 365, date(-352), null],
+  ['demo-pm-5', 'demo-trk-2', null, 'Annual DOT inspection (396.17)', null, 365, date(-120), null],
+  ['demo-pm-6', 'demo-trk-3', null, 'Annual DOT inspection (396.17)', null, 365, date(-200), null],
+  ['demo-pm-7', null, 'demo-trl-4', 'Reefer unit service', null, 180, date(-150), null],
+];
+for (const [id, truck_id, trailer_id, name, interval_miles, interval_days, last_done_on, last_done_odometer] of pm) {
+  out.push(insert('pm_schedules', { id, tenant_id: TENANT, truck_id, trailer_id, name, interval_miles, interval_days, last_done_on, last_done_odometer }));
+}
+out.push(insert('maintenance_records', { id: 'demo-mr-1', tenant_id: TENANT, truck_id: 'demo-trk-2', performed_on: date(-20), odometer: 380_100, vendor: 'Rush Truck Center', description: 'PM A: oil, filters, chassis lube', cost_cents: 0, pm_schedule_id: 'demo-pm-2', created_by: owner.id }));
+out.push(insert('maintenance_records', { id: 'demo-mr-2', tenant_id: TENANT, truck_id: 'demo-trk-2', performed_on: date(-9), odometer: 384_950, vendor: 'Southern Tire Mart', description: 'Replaced 8 drive tires', cost_cents: 0, created_by: owner.id }));
+
+// DVIRs: a clean pre-trip, and an open defect holding truck 103.
+out.push(insert('dvirs', { id: 'demo-dvir-1', tenant_id: TENANT, driver_id: 'demo-drv-1', truck_id: 'demo-trk-1', trailer_id: 'demo-trl-1', kind: 'pre_trip', inspected_at: ts(-1, 6), odometer: 412_400, location: 'Dallas, TX', signature_name: 'Marcus Reed', status: 'satisfactory' }));
+out.push(insert('dvirs', { id: 'demo-dvir-2', tenant_id: TENANT, driver_id: 'demo-drv-3', truck_id: 'demo-trk-3', trailer_id: 'demo-trl-3', kind: 'post_trip', inspected_at: ts(-1, 19), odometer: 251_090, location: 'Oklahoma City, OK', signature_name: 'Dwayne Hollis', status: 'defects_open' }));
+out.push(insert('dvir_defects', { id: 'demo-def-1', tenant_id: TENANT, dvir_id: 'demo-dvir-2', unit: 'truck', component: 'service_brakes', description: 'Right rear drive axle brake out of adjustment', out_of_service: 1 }));
+out.push(insert('dvir_defects', { id: 'demo-def-2', tenant_id: TENANT, dvir_id: 'demo-dvir-2', unit: 'trailer', component: 'lighting_reflectors', description: 'Left rear marker lamp out', out_of_service: 0 }));
+
+// DQ files: mostly complete, with real gaps to find.
+let dq = 0;
+const dqf = (driver_id, item_type, completed_on, expires_on = null) => out.push(insert('dqf_items', { id: `demo-dq-${++dq}`, tenant_id: TENANT, driver_id, item_type, completed_on, expires_on, recorded_by: owner.id }));
+for (const [i, d] of drivers.entries()) {
+  const hired = date(-400 - i * 90);
+  dqf(d.id, 'application', hired);
+  dqf(d.id, 'mvr_preemployment', hired);
+  dqf(d.id, 'clearinghouse_pre', hired);
+  if (i !== 4) dqf(d.id, 'safety_history', hired);
+  dqf(d.id, 'road_test', hired);
+  dqf(d.id, 'medical_certificate', date(-300), d.medical_expires_on);
+  if (i !== 2) dqf(d.id, 'registry_verification', date(-300));
+  dqf(d.id, 'annual_mvr', i === 3 ? date(-380) : date(-60));
+  dqf(d.id, 'annual_review', i === 3 ? date(-380) : date(-60));
+  dqf(d.id, 'clearinghouse_annual', date(-90));
 }
 
 process.stdout.write(out.join('\n') + '\n');
